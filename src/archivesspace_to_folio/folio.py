@@ -1,0 +1,333 @@
+import logging
+from dataclasses import dataclass
+from typing import Optional
+
+from folioclient import FolioClient
+
+from .config import FolioConfig, SettingsConfig
+from .utils import parse_final_id_from_uri, render_aspace_format
+
+logger = logging.getLogger(__name__)
+
+_HOLDINGS_PUT_EXCLUDE_FIELDS = ["holdingsItems", "bareHoldingsItems"]
+
+
+@dataclass
+class FolioReferenceData:
+    material_type_id: str
+    permanent_loan_type_id: str
+    holdings_type_id: str
+    holdings_source_id: str
+    managed_stat_code_id: str
+    suppressed_stat_code_id: Optional[str]
+    location_name_to_id: dict[str, str]
+
+
+def make_client(config: FolioConfig) -> FolioClient:
+    return FolioClient(
+        config.gateway_url,
+        config.tenant_id,
+        config.username,
+        config.password,
+    )
+
+
+def resolve_reference_data(
+    fc: FolioClient, settings: SettingsConfig
+) -> FolioReferenceData:
+    material_type_id = _lookup_ref(
+        fc, "/material-types", "mtypes", "name", settings.material_type
+    )
+    loan_type_id = _lookup_ref(
+        fc, "/loan-types", "loantypes", "name", settings.permanent_loan_type
+    )
+    holdings_type_id = _lookup_ref(
+        fc, "/holdings-types", "holdingsTypes", "name", settings.holdings_type
+    )
+    holdings_source_id = _lookup_ref(
+        fc,
+        "/holdings-sources",
+        "holdingsRecordsSources",
+        "name",
+        settings.holdings_source,
+    )
+    managed_stat_code_id = _lookup_ref(
+        fc,
+        "/statistical-codes",
+        "statisticalCodes",
+        "name",
+        settings.managed_statistical_code,
+    )
+    suppressed_stat_code_id = (
+        _lookup_ref(
+            fc,
+            "/statistical-codes",
+            "statisticalCodes",
+            "name",
+            settings.suppressed_statistical_code,
+        )
+        if settings.suppressed_statistical_code
+        else None
+    )
+
+    locations = list(
+        fc.folio_get_all("/locations", key="locations", query="cql.allRecords=1")
+    )
+    location_name_to_id = {loc["name"]: loc["id"] for loc in locations}
+
+    return FolioReferenceData(
+        material_type_id=material_type_id,
+        permanent_loan_type_id=loan_type_id,
+        holdings_type_id=holdings_type_id,
+        holdings_source_id=holdings_source_id,
+        managed_stat_code_id=managed_stat_code_id,
+        suppressed_stat_code_id=suppressed_stat_code_id,
+        location_name_to_id=location_name_to_id,
+    )
+
+
+def _lookup_ref(fc: FolioClient, path: str, key: str, field: str, value: str) -> str:
+    records = list(fc.folio_get_all(path, key=key, query=f'{field}=="{value}"'))
+    if not records:
+        raise ValueError(f"No FOLIO record found at {path} where {field}={value!r}")
+    return records[0]["id"]
+
+
+def find_instance_by_aspace_url(fc: FolioClient, url: str) -> Optional[dict]:
+    results = list(
+        fc.folio_get_all(
+            "/search/instances",
+            key="instances",
+            query=f'electronicAccess.uri=="{url}"',
+            query_params={"expandAll": True},
+        )
+    )
+    if not results:
+        return None
+    if len(results) > 1:
+        logger.error("Multiple FOLIO instances match URL %s; skipping collection", url)
+        return None
+    return results[0]
+
+
+def find_item_by_barcode(fc: FolioClient, barcode: str) -> Optional[dict]:
+    results = list(
+        fc.folio_get_all(
+            "/item-storage/items",
+            key="items",
+            query=f'barcode=="{barcode}"',
+        )
+    )
+    return results[0] if results else None
+
+
+def get_managed_holdings(
+    fc: FolioClient, instance_id: str, managed_stat_code_id: str
+) -> list[dict]:
+    return list(
+        fc.folio_get_all(
+            "/holdings-storage/holdings",
+            key="holdingsRecords",
+            query=f'instanceId=="{instance_id}" and statisticalCodeIds="{managed_stat_code_id}"',
+        )
+    )
+
+
+def get_managed_items(
+    fc: FolioClient, holdings_id: str, managed_stat_code_id: str
+) -> list[dict]:
+    return list(
+        fc.folio_get_all(
+            "/item-storage/items",
+            key="items",
+            query=f'holdingsRecordId=="{holdings_id}" and statisticalCodeIds="{managed_stat_code_id}"',
+        )
+    )
+
+
+def create_or_update_holdings(
+    fc: FolioClient,
+    instance_id: str,
+    folio_location_id: str,
+    collection: dict,
+    ref: FolioReferenceData,
+    settings: SettingsConfig,
+) -> tuple[dict, bool]:
+    existing = list(
+        fc.folio_get_all(
+            "/holdings-storage/holdings",
+            key="holdingsRecords",
+            query=(
+                f'instanceId=="{instance_id}"'
+                f' and permanentLocationId=="{folio_location_id}"'
+            ),
+        )
+    )
+    call_number = render_aspace_format(
+        settings.holdings_call_number_aspace_format, collection
+    )
+    desired = {
+        "instanceId": instance_id,
+        "permanentLocationId": folio_location_id,
+        "holdingsTypeId": ref.holdings_type_id,
+        "sourceId": ref.holdings_source_id,
+        "callNumber": call_number,
+    }
+
+    if existing:
+        holdings = existing[0]
+        updated = dict(holdings)
+        code_missing = ref.managed_stat_code_id not in updated.get(
+            "statisticalCodeIds", []
+        )
+        updated = _ensure_stat_code(updated, ref.managed_stat_code_id)
+        if _record_differs(holdings, desired) or code_missing:
+            fc.folio_put(
+                f"/holdings-storage/holdings/{updated['id']}",
+                payload=_strip_fields(updated, _HOLDINGS_PUT_EXCLUDE_FIELDS),
+            )
+            logger.info("Updated holdings %s", updated["id"])
+        return updated, False
+
+    result = fc.folio_post(
+        "/holdings-storage/holdings",
+        payload={**desired, "statisticalCodeIds": [ref.managed_stat_code_id]},
+    )
+    logger.info("Created holdings %s", result["id"])
+    return result, True
+
+
+def create_or_update_item(
+    fc: FolioClient,
+    holdings_id: str,
+    tlc: dict,
+    repo_id: int,
+    ref: FolioReferenceData,
+    settings: SettingsConfig,
+) -> tuple[dict, bool]:
+    tlc_id = parse_final_id_from_uri(tlc.get("uri", ""))
+    barcode = f"AS_TEMP_{repo_id}_{tlc_id}"
+    desired = {
+        "holdingsRecordId": holdings_id,
+        "barcode": barcode,
+        "materialTypeId": ref.material_type_id,
+        "permanentLoanTypeId": ref.permanent_loan_type_id,
+        "status": {"name": "Available"},
+        "statisticalCodeIds": [ref.managed_stat_code_id],
+    }
+    if settings.item_call_number_aspace_format:
+        desired["itemLevelCallNumber"] = render_aspace_format(
+            settings.item_call_number_aspace_format, tlc
+        )
+
+    existing = find_item_by_barcode(fc, barcode)
+    if existing:
+        updated = dict(existing)
+        updated = _ensure_stat_code(updated, ref.managed_stat_code_id)
+        if settings.item_call_number_aspace_format:
+            updated["itemLevelCallNumber"] = render_aspace_format(
+                settings.item_call_number_aspace_format, tlc
+            )
+        if _record_differs(existing, desired):
+            fc.folio_put(f"/item-storage/items/{updated['id']}", payload=updated)
+            logger.info("Updated item %s (barcode %s)", updated["id"], barcode)
+        return updated, False
+
+    result = fc.folio_post("/item-storage/items", payload=desired)
+    logger.info("Created item %s (barcode %s)", result["id"], barcode)
+    return result, True
+
+
+def suppress_non_managed_holdings(
+    fc: FolioClient,
+    instance_id: str,
+    except_id: str,
+    managed_stat_code_id: str,
+    suppressed_stat_code_id: Optional[str] = None,
+) -> None:
+    all_holdings = list(
+        fc.folio_get_all(
+            "/holdings-storage/holdings",
+            key="holdingsRecords",
+            query=f'instanceId=="{instance_id}"',
+        )
+    )
+    for holdings in all_holdings:
+        if holdings["id"] == except_id:
+            continue
+        if managed_stat_code_id in holdings.get("statisticalCodeIds", []):
+            continue
+        already_suppressed = holdings.get("discoverySuppress")
+        if not already_suppressed or (
+            suppressed_stat_code_id
+            and suppressed_stat_code_id not in holdings.get("statisticalCodeIds", [])
+        ):
+            holdings["discoverySuppress"] = True
+            if suppressed_stat_code_id:
+                holdings = _ensure_stat_code(holdings, suppressed_stat_code_id)
+            if not already_suppressed or _record_differs(
+                holdings, {"statisticalCodeIds": [suppressed_stat_code_id]}
+            ):
+                fc.folio_put(
+                    f"/holdings-storage/holdings/{holdings['id']}",
+                    payload=_strip_fields(holdings, _HOLDINGS_PUT_EXCLUDE_FIELDS),
+                )
+                logger.info("Suppressed non-managed holdings %s", holdings["id"])
+
+        items = list(
+            fc.folio_get_all(
+                "/item-storage/items",
+                key="items",
+                query=f'holdingsRecordId=="{holdings["id"]}"',
+            )
+        )
+        for item in items:
+            already_suppressed_item = item.get("discoverySuppress")
+            if not already_suppressed_item or (
+                suppressed_stat_code_id
+                and suppressed_stat_code_id not in item.get("statisticalCodeIds", [])
+            ):
+                item["discoverySuppress"] = True
+                if suppressed_stat_code_id:
+                    item = _ensure_stat_code(item, suppressed_stat_code_id)
+                if not already_suppressed_item or _record_differs(
+                    item, {"statisticalCodeIds": [suppressed_stat_code_id]}
+                ):
+                    fc.folio_put(f"/item-storage/items/{item['id']}", payload=item)
+                    logger.info(
+                        "Suppressed item %s on non-managed holdings", item["id"]
+                    )
+
+
+def delete_managed_records(
+    fc: FolioClient, instance_id: str, managed_stat_code_id: str
+) -> None:
+    holdings_list = get_managed_holdings(fc, instance_id, managed_stat_code_id)
+    for holdings in holdings_list:
+        items = get_managed_items(fc, holdings["id"], managed_stat_code_id)
+        for item in items:
+            fc.folio_delete(f"/item-storage/items/{item['id']}")
+            logger.info("Deleted managed item %s", item["id"])
+        fc.folio_delete(f"/holdings-storage/holdings/{holdings['id']}")
+        logger.info("Deleted managed holdings %s", holdings["id"])
+
+
+def _record_differs(existing: dict, desired: dict) -> bool:
+    for key, value in desired.items():
+        if key == "statisticalCodeIds":
+            if not all(c in existing.get("statisticalCodeIds", []) for c in value):
+                return True
+        elif existing.get(key) != value:
+            return True
+    return False
+
+
+def _strip_fields(record: dict, fields: list[str]) -> dict:
+    return {k: v for k, v in record.items() if k not in fields}
+
+
+def _ensure_stat_code(record: dict, stat_code_id: str) -> dict:
+    codes = record.setdefault("statisticalCodeIds", [])
+    if stat_code_id not in codes:
+        codes.append(stat_code_id)
+    return record

@@ -1,0 +1,65 @@
+aspace:
+  base_url: https://archivesspace.example.edu/api
+  username: ""
+  password: ""
+  # List of repository IDs to process. Empty list = all repositories.
+  repository_ids: []
+
+folio:
+  gateway_url: https://folio.example.org
+  tenant_id: ""
+  username: ""
+  password: ""
+  # The FOLIO user must have the following permissions:
+  #   inventory-storage.holdings-types.collection.get
+  #   inventory-storage.holdings.collection.get
+  #   inventory-storage.holdings.item.delete
+  #   inventory-storage.holdings.item.post
+  #   inventory-storage.holdings.item.put
+  #   inventory-storage.holdings-sources.collection.get
+
+  #   inventory-storage.items.collection.get
+  #   inventory-storage.items.item.delete
+  #   inventory-storage.items.item.post
+  #   inventory-storage.items.item.put
+  #   inventory-storage.loan-types.collection.get
+  #   inventory-storage.locations.collection.get
+  #   inventory-storage.material-types.collection.get
+  #   inventory-storage.statistical-codes.collection.get
+  #   search.instances.collection.get
+
+filters:
+  # Set to null or remove key to skip that filter.
+  published: true
+  finding_aid_status: "completed"
+
+settings:
+  # Domain used to build ASpace public URLs for FOLIO electronic access matching.
+  aspace_domain: archivesspace.example.edu
+
+  # FOLIO reference data — use names; UUIDs are looked up at startup.
+  material_type: "unspecified"
+  permanent_loan_type: "Reading room"
+  holdings_type: "Physical"
+  holdings_source: "FOLIO"
+  managed_statistical_code: "MANAGED_VIA_ARCHIVESSPACE"
+  suppressed_statistical_code: "SUPPRESSED_VIA_ARCHIVESSPACE"
+
+  # Holdings call number: format string using ASpace collection fields.
+  # Use {field_name} placeholders, e.g. "{id_0} {id_1}" or "{title}".
+  holdings_call_number_aspace_format: "{display_string}"
+
+  # Item call number: format string using ASpace TLC fields.
+  # Use {field_name} placeholders, e.g. "{type} {indicator} {barcode}".
+  item_call_number_aspace_format: "{display_string} {collection_identifier_stored_u_sstr}"
+
+  # Whether to suppress existing non-managed holdings (and their items) when a new managed holdings is added.
+  suppress_non_managed_holdings: true
+
+  # Mapping from ASpace location ID (integer) to FOLIO location name.
+  # The FOLIO location UUID is looked up at startup by name.
+  location_map:
+    # 12345: "Main Library Stacks"
+
+  # Fallback FOLIO location name for TLCs with no ASpace location set.
+  # default_location: "Main Library Stacks"
