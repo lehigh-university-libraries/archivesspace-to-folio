@@ -84,5 +84,5 @@ Instance records must be created separately; this tool does not create or delete
 
 - Records are identified as managed by the configured statistical code.
 - On each run, managed records are updated if their source data has changed.
-- When a new managed holdings record is added to an instance that has pre-existing unmanaged holdings, the unmanaged holdings (and their items) are suppressed (`discoverySuppressed=true`). This behavior is configurable.
+- When a new managed holdings record is added to an instance that has pre-existing unmanaged holdings, the unmanaged holdings (and their items) are suppressed (`discoverySuppress=true`). This behavior is configurable.
 - The `--delete` flag removes all managed holdings and items but does not unsuppress previously suppressed records.

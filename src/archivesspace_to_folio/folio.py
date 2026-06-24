@@ -163,7 +163,9 @@ def create_or_update_holdings(
             ),
         )
     )
-    call_number = render_aspace_format(settings.holdings_call_number_aspace_format, collection)
+    call_number = render_aspace_format(
+        settings.holdings_call_number_aspace_format, collection
+    )
     desired = {
         "instanceId": instance_id,
         "permanentLocationId": folio_location_id,
@@ -214,14 +216,18 @@ def create_or_update_item(
         "statisticalCodeIds": [ref.managed_stat_code_id],
     }
     if settings.item_call_number_aspace_format:
-        desired["itemLevelCallNumber"] = render_aspace_format(settings.item_call_number_aspace_format, tlc)
+        desired["itemLevelCallNumber"] = render_aspace_format(
+            settings.item_call_number_aspace_format, tlc
+        )
 
     existing = find_item_by_barcode(fc, barcode)
     if existing:
         updated = dict(existing)
         updated = _ensure_stat_code(updated, ref.managed_stat_code_id)
         if settings.item_call_number_aspace_format:
-            updated["itemLevelCallNumber"] = render_aspace_format(settings.item_call_number_aspace_format, tlc)
+            updated["itemLevelCallNumber"] = render_aspace_format(
+                settings.item_call_number_aspace_format, tlc
+            )
         if _record_differs(existing, desired):
             fc.folio_put(f"/item-storage/items/{updated['id']}", payload=updated)
             logger.info("Updated item %s (barcode %s)", updated["id"], barcode)
@@ -251,12 +257,12 @@ def suppress_non_managed_holdings(
             continue
         if managed_stat_code_id in holdings.get("statisticalCodeIds", []):
             continue
-        already_suppressed = holdings.get("discoverySuppressed")
+        already_suppressed = holdings.get("discoverySuppress")
         if not already_suppressed or (
             suppressed_stat_code_id
             and suppressed_stat_code_id not in holdings.get("statisticalCodeIds", [])
         ):
-            holdings["discoverySuppressed"] = True
+            holdings["discoverySuppress"] = True
             if suppressed_stat_code_id:
                 holdings = _ensure_stat_code(holdings, suppressed_stat_code_id)
             if not already_suppressed or _record_differs(
@@ -276,12 +282,12 @@ def suppress_non_managed_holdings(
             )
         )
         for item in items:
-            already_suppressed_item = item.get("discoverySuppressed")
+            already_suppressed_item = item.get("discoverySuppress")
             if not already_suppressed_item or (
                 suppressed_stat_code_id
                 and suppressed_stat_code_id not in item.get("statisticalCodeIds", [])
             ):
-                item["discoverySuppressed"] = True
+                item["discoverySuppress"] = True
                 if suppressed_stat_code_id:
                     item = _ensure_stat_code(item, suppressed_stat_code_id)
                 if not already_suppressed_item or _record_differs(
