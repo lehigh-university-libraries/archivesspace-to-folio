@@ -128,7 +128,7 @@ def get_managed_holdings(
         fc.folio_get_all(
             "/holdings-storage/holdings",
             key="holdingsRecords",
-            query=f'instanceId=="{instance_id}" and statisticalCodeIds=="{managed_stat_code_id}"',
+            query=f'instanceId=="{instance_id}" and statisticalCodeIds="{managed_stat_code_id}"',
         )
     )
 
@@ -140,7 +140,7 @@ def get_managed_items(
         fc.folio_get_all(
             "/item-storage/items",
             key="items",
-            query=f'holdingsRecordId=="{holdings_id}" and statisticalCodeIds=="{managed_stat_code_id}"',
+            query=f'holdingsRecordId=="{holdings_id}" and statisticalCodeIds="{managed_stat_code_id}"',
         )
     )
 
