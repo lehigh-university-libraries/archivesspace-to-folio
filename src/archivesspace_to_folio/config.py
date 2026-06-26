@@ -8,6 +8,7 @@ class ASpaceConfig:
     base_url: str
     username: str
     password: str
+    public_domain: str = ""
     repository_ids: list[int] = field(default_factory=list)
 
 
@@ -26,16 +27,25 @@ class FiltersConfig:
 
 
 @dataclass
-class SettingsConfig:
-    aspace_domain: str
+class HoldingsMappingConfig:
+    type: str
+    source: str = "FOLIO"
+    fields: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
+class ItemsMappingConfig:
     material_type: str
     permanent_loan_type: str
-    holdings_type: str
+    fields: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
+class MappingConfig:
+    holdings: HoldingsMappingConfig
+    items: ItemsMappingConfig
     managed_statistical_code: str
-    holdings_call_number_aspace_format: str
-    holdings_source: str = "FOLIO"
     suppressed_statistical_code: Optional[str] = None
-    item_call_number_aspace_format: Optional[str] = None
     suppress_non_managed_holdings: bool = True
     location_map: dict[int, str] = field(default_factory=dict)
     default_location: Optional[str] = None
@@ -46,7 +56,7 @@ class Config:
     aspace: ASpaceConfig
     folio: FolioConfig
     filters: FiltersConfig
-    settings: SettingsConfig
+    mapping: MappingConfig
 
 
 def load_config(path: str) -> Config:
@@ -56,9 +66,11 @@ def load_config(path: str) -> Config:
     aspace_raw = raw.get("aspace", {})
     folio_raw = raw.get("folio", {})
     filters_raw = raw.get("filters", {})
-    settings_raw = raw.get("settings", {})
+    mapping_raw = raw.get("mapping", {})
+    holdings_raw = mapping_raw.get("holdings", {})
+    items_raw = mapping_raw.get("items", {})
 
-    location_map_raw = settings_raw.get("location_map") or {}
+    location_map_raw = mapping_raw.get("location_map") or {}
     location_map = {int(k): v for k, v in location_map_raw.items()}
 
     return Config(
@@ -66,6 +78,7 @@ def load_config(path: str) -> Config:
             base_url=aspace_raw["base_url"],
             username=aspace_raw["username"],
             password=aspace_raw["password"],
+            public_domain=aspace_raw.get("public_domain", ""),
             repository_ids=[int(r) for r in aspace_raw.get("repository_ids", [])],
         ),
         folio=FolioConfig(
@@ -78,20 +91,21 @@ def load_config(path: str) -> Config:
             published=filters_raw.get("published", None),
             finding_aid_status=filters_raw.get("finding_aid_status", None),
         ),
-        settings=SettingsConfig(
-            aspace_domain=settings_raw["aspace_domain"],
-            material_type=settings_raw["material_type"],
-            permanent_loan_type=settings_raw["permanent_loan_type"],
-            holdings_type=settings_raw["holdings_type"],
-            managed_statistical_code=settings_raw["managed_statistical_code"],
-            holdings_source=settings_raw.get("holdings_source", "FOLIO"),
-            suppressed_statistical_code=settings_raw.get("suppressed_statistical_code", None),
-            item_call_number_aspace_format=settings_raw.get("item_call_number_aspace_format", None),
-            holdings_call_number_aspace_format=settings_raw["holdings_call_number_aspace_format"],
-            suppress_non_managed_holdings=settings_raw.get(
-                "suppress_non_managed_holdings", True
+        mapping=MappingConfig(
+            holdings=HoldingsMappingConfig(
+                type=holdings_raw["type"],
+                source=holdings_raw.get("source", "FOLIO"),
+                fields=holdings_raw.get("fields") or {},
             ),
+            items=ItemsMappingConfig(
+                material_type=items_raw["material_type"],
+                permanent_loan_type=items_raw["permanent_loan_type"],
+                fields=items_raw.get("fields") or {},
+            ),
+            managed_statistical_code=mapping_raw["managed_statistical_code"],
+            suppressed_statistical_code=mapping_raw.get("suppressed_statistical_code", None),
+            suppress_non_managed_holdings=mapping_raw.get("suppress_non_managed_holdings", True),
             location_map=location_map,
-            default_location=settings_raw.get("default_location", None),
+            default_location=mapping_raw.get("default_location", None),
         ),
     )

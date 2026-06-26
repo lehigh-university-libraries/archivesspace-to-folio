@@ -4,6 +4,8 @@ aspace:
   password: ""
   # List of repository IDs to process. Empty list = all repositories.
   repository_ids: []
+  # Public hostname used to build collection URLs for FOLIO electronic access matching.
+  public_domain: archivesspace.example.edu
 
 folio:
   gateway_url: https://folio.example.org
@@ -33,25 +35,31 @@ filters:
   published: true
   finding_aid_status: "completed"
 
-settings:
-  # Domain used to build ASpace public URLs for FOLIO electronic access matching.
-  aspace_domain: archivesspace.example.edu
-
-  # FOLIO reference data — use names; UUIDs are looked up at startup.
-  material_type: "unspecified"
-  permanent_loan_type: "Reading room"
-  holdings_type: "Physical"
-  holdings_source: "FOLIO"
+mapping:
   managed_statistical_code: "MANAGED_VIA_ARCHIVESSPACE"
   suppressed_statistical_code: "SUPPRESSED_VIA_ARCHIVESSPACE"
 
-  # Holdings call number: format string using ASpace collection fields.
-  # Use {field_name} placeholders, e.g. "{id_0} {id_1}" or "{title}".
-  holdings_call_number_aspace_format: "{display_string}"
+  holdings:
+    type: "Physical"
+    source: "FOLIO"
+    # Field mappings — keys are FOLIO field names (camelCase); values are either:
+    #   - A format string with {aspace_field_name} tokens (e.g. "{id_0} {id_1}")
+    #   - A function reference "fn:function_name" for complex logic (defined in field_functions.py)
+    # Structural fields (instanceId, permanentLocationId, sourceId, etc.) are set by the engine.
+    fields:
+      callNumber: "{id_0} {id_1}"
+      # callNumberPrefix: "SC"
+      # callNumberSuffix: "fn:my_suffix_function"
 
-  # Item call number: format string using ASpace TLC fields.
-  # Use {field_name} placeholders, e.g. "{type} {indicator} {barcode}".
-  item_call_number_aspace_format: "{display_string} {collection_identifier_stored_u_sstr}"
+  items:
+    material_type: "unspecified"
+    permanent_loan_type: "Reading room"
+    # Field mappings — same format as holdings.fields above.
+    # Structural fields (holdingsRecordId, barcode, materialTypeId, etc.) are set by the engine.
+    fields:
+      itemLevelCallNumber: "{display_string} {collection_identifier_stored_u_sstr}"
+      # enumeration: "{indicator}"
+      # chronology: "fn:my_chronology_function"
 
   # Whether to suppress existing non-managed holdings (and their items) when a new managed holdings is added.
   suppress_non_managed_holdings: true

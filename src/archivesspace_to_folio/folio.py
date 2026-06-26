@@ -4,8 +4,9 @@ from typing import Optional
 
 from folioclient import FolioClient
 
-from .config import FolioConfig, SettingsConfig
-from .utils import parse_final_id_from_uri, render_aspace_format
+from .config import FolioConfig, MappingConfig
+from . import field_functions
+from .utils import parse_final_id_from_uri, render_field_value
 
 logger = logging.getLogger(__name__)
 
@@ -33,23 +34,23 @@ def make_client(config: FolioConfig) -> FolioClient:
 
 
 def resolve_reference_data(
-    fc: FolioClient, settings: SettingsConfig
+    fc: FolioClient, settings: MappingConfig
 ) -> FolioReferenceData:
     material_type_id = _lookup_ref(
-        fc, "/material-types", "mtypes", "name", settings.material_type
+        fc, "/material-types", "mtypes", "name", settings.items.material_type
     )
     loan_type_id = _lookup_ref(
-        fc, "/loan-types", "loantypes", "name", settings.permanent_loan_type
+        fc, "/loan-types", "loantypes", "name", settings.items.permanent_loan_type
     )
     holdings_type_id = _lookup_ref(
-        fc, "/holdings-types", "holdingsTypes", "name", settings.holdings_type
+        fc, "/holdings-types", "holdingsTypes", "name", settings.holdings.type
     )
     holdings_source_id = _lookup_ref(
         fc,
         "/holdings-sources",
         "holdingsRecordsSources",
         "name",
-        settings.holdings_source,
+        settings.holdings.source,
     )
     managed_stat_code_id = _lookup_ref(
         fc,
@@ -151,7 +152,7 @@ def create_or_update_holdings(
     folio_location_id: str,
     collection: dict,
     ref: FolioReferenceData,
-    settings: SettingsConfig,
+    settings: MappingConfig,
 ) -> tuple[dict, bool]:
     existing = list(
         fc.folio_get_all(
@@ -163,16 +164,14 @@ def create_or_update_holdings(
             ),
         )
     )
-    call_number = render_aspace_format(
-        settings.holdings_call_number_aspace_format, collection
-    )
     desired = {
         "instanceId": instance_id,
         "permanentLocationId": folio_location_id,
         "holdingsTypeId": ref.holdings_type_id,
         "sourceId": ref.holdings_source_id,
-        "callNumber": call_number,
     }
+    for folio_field, value_spec in settings.holdings.fields.items():
+        desired[folio_field] = render_field_value(value_spec, collection, field_functions.REGISTRY)
 
     if existing:
         holdings = existing[0]
@@ -181,6 +180,8 @@ def create_or_update_holdings(
             "statisticalCodeIds", []
         )
         updated = _ensure_stat_code(updated, ref.managed_stat_code_id)
+        for folio_field, value_spec in settings.holdings.fields.items():
+            updated[folio_field] = render_field_value(value_spec, collection, field_functions.REGISTRY)
         if _record_differs(holdings, desired) or code_missing:
             fc.folio_put(
                 f"/holdings-storage/holdings/{updated['id']}",
@@ -203,7 +204,7 @@ def create_or_update_item(
     tlc: dict,
     repo_id: int,
     ref: FolioReferenceData,
-    settings: SettingsConfig,
+    settings: MappingConfig,
 ) -> tuple[dict, bool]:
     tlc_id = parse_final_id_from_uri(tlc.get("uri", ""))
     barcode = f"AS_TEMP_{repo_id}_{tlc_id}"
@@ -215,19 +216,15 @@ def create_or_update_item(
         "status": {"name": "Available"},
         "statisticalCodeIds": [ref.managed_stat_code_id],
     }
-    if settings.item_call_number_aspace_format:
-        desired["itemLevelCallNumber"] = render_aspace_format(
-            settings.item_call_number_aspace_format, tlc
-        )
+    for folio_field, value_spec in settings.items.fields.items():
+        desired[folio_field] = render_field_value(value_spec, tlc, field_functions.REGISTRY)
 
     existing = find_item_by_barcode(fc, barcode)
     if existing:
         updated = dict(existing)
         updated = _ensure_stat_code(updated, ref.managed_stat_code_id)
-        if settings.item_call_number_aspace_format:
-            updated["itemLevelCallNumber"] = render_aspace_format(
-                settings.item_call_number_aspace_format, tlc
-            )
+        for folio_field, value_spec in settings.items.fields.items():
+            updated[folio_field] = render_field_value(value_spec, tlc, field_functions.REGISTRY)
         if _record_differs(existing, desired):
             fc.folio_put(f"/item-storage/items/{updated['id']}", payload=updated)
             logger.info("Updated item %s (barcode %s)", updated["id"], barcode)

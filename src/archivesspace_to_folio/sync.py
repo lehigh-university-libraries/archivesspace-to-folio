@@ -20,7 +20,7 @@ def sync(
     folio_client = folio.make_client(config.folio)
 
     logger.info("Resolving FOLIO reference data...")
-    ref = folio.resolve_reference_data(folio_client, config.settings)
+    ref = folio.resolve_reference_data(folio_client, config.mapping)
 
     repo_ids = [repository_id] if repository_id else config.aspace.repository_ids
     repos = aspace.get_repositories(aspace_client, repo_ids)
@@ -60,7 +60,7 @@ def _sync_collection(
     delete_mode: bool,
 ) -> None:
     coll_id = parse_final_id_from_uri(collection["uri"])
-    aspace_url = f"https://{config.settings.aspace_domain}/repositories/{repo_id}/resources/{coll_id}"
+    aspace_url = f"https://{config.aspace.public_domain}/repositories/{repo_id}/resources/{coll_id}"
     title = collection.get("title", collection["uri"])
 
     instance = folio.find_instance_by_aspace_url(folio_client, aspace_url)
@@ -92,11 +92,11 @@ def _sync_collection(
 
     for aspace_loc_id, tlc_group in location_groups.items():
         folio_location_name = (
-            config.settings.location_map.get(aspace_loc_id)
+            config.mapping.location_map.get(aspace_loc_id)
             if aspace_loc_id is not None
             else None
         )
-        folio_location_name = folio_location_name or config.settings.default_location
+        folio_location_name = folio_location_name or config.mapping.default_location
         if not folio_location_name:
             logger.warning(
                 "No FOLIO location mapping for ASpace location ID %s; skipping %d TLC(s)",
@@ -120,10 +120,10 @@ def _sync_collection(
             folio_location_id,
             collection,
             ref,
-            config.settings,
+            config.mapping,
         )
         if holdings_created:
-            if config.settings.suppress_non_managed_holdings:
+            if config.mapping.suppress_non_managed_holdings:
                 folio.suppress_non_managed_holdings(
                     folio_client,
                     instance["id"],
@@ -138,5 +138,5 @@ def _sync_collection(
                 tlc,
                 repo_id,
                 ref,
-                config.settings,
+                config.mapping,
             )
