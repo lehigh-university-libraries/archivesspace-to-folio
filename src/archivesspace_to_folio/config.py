@@ -37,6 +37,7 @@ class HoldingsMappingConfig:
 class ItemsMappingConfig:
     material_type: str
     permanent_loan_type: str
+    electronic_access_relationship: Optional[str] = None
     fields: dict[str, str] = field(default_factory=dict)
 
 
@@ -100,6 +101,7 @@ def load_config(path: str) -> Config:
             items=ItemsMappingConfig(
                 material_type=items_raw["material_type"],
                 permanent_loan_type=items_raw["permanent_loan_type"],
+                electronic_access_relationship=items_raw.get("electronic_access_relationship", None),
                 fields=items_raw.get("fields") or {},
             ),
             managed_statistical_code=mapping_raw["managed_statistical_code"],

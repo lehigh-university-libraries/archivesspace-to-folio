@@ -13,13 +13,13 @@ folio:
   username: ""
   password: ""
   # The FOLIO user must have the following permissions:
+  #   inventory-storage.electronic-access-relationships.collection.get
   #   inventory-storage.holdings-types.collection.get
   #   inventory-storage.holdings.collection.get
   #   inventory-storage.holdings.item.delete
   #   inventory-storage.holdings.item.post
   #   inventory-storage.holdings.item.put
   #   inventory-storage.holdings-sources.collection.get
-
   #   inventory-storage.items.collection.get
   #   inventory-storage.items.item.delete
   #   inventory-storage.items.item.post
@@ -54,10 +54,14 @@ mapping:
   items:
     material_type: "unspecified"
     permanent_loan_type: "Reading room"
+    # FOLIO electronic access relationship name to use when generating electronicAccess entries.
+    # Set to null or omit to skip relationship ID lookup.
+    electronic_access_relationship: "Resource"
     # Field mappings — same format as holdings.fields above.
     # Structural fields (holdingsRecordId, barcode, materialTypeId, etc.) are set by the engine.
     fields:
       itemLevelCallNumber: "{display_string} {collection_identifier_stored_u_sstr}"
+      electronicAccess: "fn:electronic_access_from_uri"
       # enumeration: "{indicator}"
       # chronology: "fn:my_chronology_function"
 

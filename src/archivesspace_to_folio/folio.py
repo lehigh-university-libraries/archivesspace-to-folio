@@ -5,7 +5,6 @@ from typing import Optional
 from folioclient import FolioClient
 
 from .config import FolioConfig, MappingConfig
-from . import field_functions
 from .utils import parse_final_id_from_uri, render_field_value
 
 logger = logging.getLogger(__name__)
@@ -36,23 +35,23 @@ def make_client(config: FolioConfig) -> FolioClient:
 def resolve_reference_data(
     fc: FolioClient, settings: MappingConfig
 ) -> FolioReferenceData:
-    material_type_id = _lookup_ref(
+    material_type_id = lookup_ref(
         fc, "/material-types", "mtypes", "name", settings.items.material_type
     )
-    loan_type_id = _lookup_ref(
+    loan_type_id = lookup_ref(
         fc, "/loan-types", "loantypes", "name", settings.items.permanent_loan_type
     )
-    holdings_type_id = _lookup_ref(
+    holdings_type_id = lookup_ref(
         fc, "/holdings-types", "holdingsTypes", "name", settings.holdings.type
     )
-    holdings_source_id = _lookup_ref(
+    holdings_source_id = lookup_ref(
         fc,
         "/holdings-sources",
         "holdingsRecordsSources",
         "name",
         settings.holdings.source,
     )
-    managed_stat_code_id = _lookup_ref(
+    managed_stat_code_id = lookup_ref(
         fc,
         "/statistical-codes",
         "statisticalCodes",
@@ -60,7 +59,7 @@ def resolve_reference_data(
         settings.managed_statistical_code,
     )
     suppressed_stat_code_id = (
-        _lookup_ref(
+        lookup_ref(
             fc,
             "/statistical-codes",
             "statisticalCodes",
@@ -87,7 +86,7 @@ def resolve_reference_data(
     )
 
 
-def _lookup_ref(fc: FolioClient, path: str, key: str, field: str, value: str) -> str:
+def lookup_ref(fc: FolioClient, path: str, key: str, field: str, value: str) -> str:
     records = list(fc.folio_get_all(path, key=key, query=f'{field}=="{value}"'))
     if not records:
         raise ValueError(f"No FOLIO record found at {path} where {field}={value!r}")
@@ -171,7 +170,7 @@ def create_or_update_holdings(
         "sourceId": ref.holdings_source_id,
     }
     for folio_field, value_spec in settings.holdings.fields.items():
-        desired[folio_field] = render_field_value(value_spec, collection, field_functions.REGISTRY)
+        desired[folio_field] = render_field_value(value_spec, collection)
 
     if existing:
         holdings = existing[0]
@@ -181,7 +180,7 @@ def create_or_update_holdings(
         )
         updated = _ensure_stat_code(updated, ref.managed_stat_code_id)
         for folio_field, value_spec in settings.holdings.fields.items():
-            updated[folio_field] = render_field_value(value_spec, collection, field_functions.REGISTRY)
+            updated[folio_field] = render_field_value(value_spec, collection)
         if _record_differs(holdings, desired) or code_missing:
             fc.folio_put(
                 f"/holdings-storage/holdings/{updated['id']}",
@@ -217,14 +216,14 @@ def create_or_update_item(
         "statisticalCodeIds": [ref.managed_stat_code_id],
     }
     for folio_field, value_spec in settings.items.fields.items():
-        desired[folio_field] = render_field_value(value_spec, tlc, field_functions.REGISTRY)
+        desired[folio_field] = render_field_value(value_spec, tlc)
 
     existing = find_item_by_barcode(fc, barcode)
     if existing:
         updated = dict(existing)
         updated = _ensure_stat_code(updated, ref.managed_stat_code_id)
         for folio_field, value_spec in settings.items.fields.items():
-            updated[folio_field] = render_field_value(value_spec, tlc, field_functions.REGISTRY)
+            updated[folio_field] = render_field_value(value_spec, tlc)
         if _record_differs(existing, desired):
             fc.folio_put(f"/item-storage/items/{updated['id']}", payload=updated)
             logger.info("Updated item %s (barcode %s)", updated["id"], barcode)

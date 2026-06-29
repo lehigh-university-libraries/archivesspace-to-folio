@@ -1,7 +1,16 @@
-from typing import Callable
+# Populated at startup via configure() before any sync runs.
+context: dict = {}
 
-# Registry for field value functions.
-# Key: name used after "fn:" in config values (e.g. "fn:my_func" → key "my_func").
-# Value: callable (record: dict) -> str, where record is the source ASpace object
-#        (collection dict for holdings fields, TLC dict for item fields).
-REGISTRY: dict[str, Callable[[dict], str]] = {}
+
+def configure(**kwargs) -> None:
+    context.update(kwargs)
+
+
+def electronic_access_from_uri(record: dict) -> list:
+    uri = record.get("uri", "")
+    public_domain = context.get("public_domain", "")
+    entry = {"uri": f"https://{public_domain}{uri}"}
+    relationship_id = context.get("electronic_access_relationship_id")
+    if relationship_id:
+        entry["relationshipId"] = relationship_id
+    return [entry]

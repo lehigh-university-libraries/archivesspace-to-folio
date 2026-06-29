@@ -3,6 +3,7 @@ from collections import defaultdict
 from typing import Optional
 
 from . import aspace as aspace
+from . import field_functions
 from . import folio as folio
 from .config import Config
 from .utils import parse_final_id_from_uri
@@ -19,8 +20,7 @@ def sync(
     aspace_client = aspace.make_client(config.aspace)
     folio_client = folio.make_client(config.folio)
 
-    logger.info("Resolving FOLIO reference data...")
-    ref = folio.resolve_reference_data(folio_client, config.mapping)
+    reference_data = _resolve_reference_data(folio_client, config)
 
     repo_ids = [repository_id] if repository_id else config.aspace.repository_ids
     repos = aspace.get_repositories(aspace_client, repo_ids)
@@ -45,9 +45,27 @@ def sync(
                 config,
                 aspace_client,
                 folio_client,
-                ref,
+                reference_data,
                 delete_mode,
             )
+
+
+def _resolve_reference_data(folio_client, config: Config) -> folio.FolioReferenceData:
+    ea_relationship_id = None
+    if config.mapping.items.electronic_access_relationship:
+        ea_relationship_id = folio.lookup_ref(
+            folio_client,
+            "/electronic-access-relationships",
+            "electronicAccessRelationships",
+            "name",
+            config.mapping.items.electronic_access_relationship,
+        )
+    field_functions.configure(
+        public_domain=config.aspace.public_domain,
+        electronic_access_relationship_id=ea_relationship_id,
+    )
+    logger.info("Resolving FOLIO reference data...")
+    return folio.resolve_reference_data(folio_client, config.mapping)
 
 
 def _sync_collection(
