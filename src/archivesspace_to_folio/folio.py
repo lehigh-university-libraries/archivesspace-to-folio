@@ -310,12 +310,19 @@ def delete_managed_records(
 
 def _record_differs(existing: dict, desired: dict) -> bool:
     for key, value in desired.items():
-        if key == "statisticalCodeIds":
-            if not all(c in existing.get("statisticalCodeIds", []) for c in value):
-                return True
-        elif existing.get(key) != value:
+        if not _values_match(existing.get(key), value):
             return True
     return False
+
+
+def _values_match(existing_value, desired_value) -> bool:
+    if isinstance(desired_value, list):
+        return all(item in (existing_value or []) for item in desired_value)
+    if isinstance(desired_value, dict):
+        if not isinstance(existing_value, dict):
+            return False
+        return all(existing_value.get(k) == v for k, v in desired_value.items())
+    return existing_value == desired_value
 
 
 def _strip_fields(record: dict, fields: list[str]) -> dict:
