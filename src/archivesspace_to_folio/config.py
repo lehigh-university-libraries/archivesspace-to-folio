@@ -46,6 +46,7 @@ class MappingConfig:
     holdings: HoldingsMappingConfig
     items: ItemsMappingConfig
     managed_statistical_code: str
+    owned_statistical_code: str
     location_key_field: str
     skip_unmapped_location: bool
     suppressed_statistical_code: Optional[str] = None
@@ -107,6 +108,7 @@ def load_config(path: str) -> Config:
                 fields=items_raw.get("fields") or {},
             ),
             managed_statistical_code=mapping_raw["managed_statistical_code"],
+            owned_statistical_code=mapping_raw["owned_statistical_code"],
             suppressed_statistical_code=mapping_raw.get("suppressed_statistical_code", None),
             suppress_non_managed_holdings=mapping_raw.get("suppress_non_managed_holdings", True),
             location_map=location_map,

@@ -19,6 +19,7 @@ class FolioReferenceData:
     holdings_type_id: str
     holdings_source_id: str
     managed_stat_code_id: str
+    owned_stat_code_id: str
     suppressed_stat_code_id: Optional[str]
     location_code_to_id: dict[str, str]
 
@@ -58,6 +59,13 @@ def resolve_reference_data(
         "name",
         settings.managed_statistical_code,
     )
+    owned_stat_code_id = lookup_ref(
+        fc,
+        "/statistical-codes",
+        "statisticalCodes",
+        "name",
+        settings.owned_statistical_code,
+    )
     suppressed_stat_code_id = (
         lookup_ref(
             fc,
@@ -81,6 +89,7 @@ def resolve_reference_data(
         holdings_type_id=holdings_type_id,
         holdings_source_id=holdings_source_id,
         managed_stat_code_id=managed_stat_code_id,
+        owned_stat_code_id=owned_stat_code_id,
         suppressed_stat_code_id=suppressed_stat_code_id,
         location_code_to_id=location_code_to_id,
     )
@@ -191,7 +200,7 @@ def create_or_update_holdings(
 
     result = fc.folio_post(
         "/holdings-storage/holdings",
-        payload={**desired, "statisticalCodeIds": [ref.managed_stat_code_id]},
+        payload={**desired, "statisticalCodeIds": [ref.managed_stat_code_id, ref.owned_stat_code_id]},
     )
     logger.info("Created holdings %s", result["id"])
     return result, True
@@ -296,16 +305,40 @@ def suppress_non_managed_holdings(
 
 
 def delete_managed_records(
-    fc: FolioClient, instance_id: str, managed_stat_code_id: str
+    fc: FolioClient, instance_id: str, ref: FolioReferenceData
 ) -> None:
-    holdings_list = get_managed_holdings(fc, instance_id, managed_stat_code_id)
+    holdings_list = get_managed_holdings(fc, instance_id, ref.managed_stat_code_id)
     for holdings in holdings_list:
-        items = get_managed_items(fc, holdings["id"], managed_stat_code_id)
+        items = get_managed_items(fc, holdings["id"], ref.managed_stat_code_id)
         for item in items:
             fc.folio_delete(f"/item-storage/items/{item['id']}")
-            logger.info("Deleted managed item %s", item["id"])
-        fc.folio_delete(f"/holdings-storage/holdings/{holdings['id']}")
-        logger.info("Deleted managed holdings %s", holdings["id"])
+            logger.info("Deleted owned item %s", item["id"])
+        if ref.owned_stat_code_id in holdings.get("statisticalCodeIds", []):
+            fc.folio_delete(f"/holdings-storage/holdings/{holdings['id']}")
+            logger.info("Deleted owned holdings %s", holdings["id"])
+        else:
+            _release_adopted_holdings(fc, holdings, ref)
+
+
+def _release_adopted_holdings(fc: FolioClient, holdings: dict, ref: FolioReferenceData) -> None:
+    updated = dict(holdings)
+    codes_to_remove = {ref.managed_stat_code_id}
+    if ref.suppressed_stat_code_id:
+        codes_to_remove.add(ref.suppressed_stat_code_id)
+    was_app_suppressed = (
+        ref.suppressed_stat_code_id
+        and ref.suppressed_stat_code_id in holdings.get("statisticalCodeIds", [])
+    )
+    updated["statisticalCodeIds"] = [
+        c for c in updated.get("statisticalCodeIds", []) if c not in codes_to_remove
+    ]
+    if was_app_suppressed:
+        updated["discoverySuppress"] = False
+    fc.folio_put(
+        f"/holdings-storage/holdings/{updated['id']}",
+        payload=_strip_fields(updated, _HOLDINGS_PUT_EXCLUDE_FIELDS),
+    )
+    logger.info("Released adopted holdings %s", holdings["id"])
 
 
 def _record_differs(existing: dict, desired: dict) -> bool:

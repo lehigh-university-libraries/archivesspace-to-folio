@@ -100,9 +100,7 @@ def _sync_collection(
 
     if delete_mode:
         logger.info("Deleting managed records for '%s'", title)
-        folio.delete_managed_records(
-            folio_client, instance["id"], folio_ref.managed_stat_code_id
-        )
+        folio.delete_managed_records(folio_client, instance["id"], folio_ref)
         return
 
     tlcs = aspace.get_top_containers(aspace_client, repo_id, coll_id)
