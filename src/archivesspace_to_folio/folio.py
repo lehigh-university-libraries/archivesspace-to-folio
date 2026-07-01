@@ -20,7 +20,7 @@ class FolioReferenceData:
     holdings_source_id: str
     managed_stat_code_id: str
     suppressed_stat_code_id: Optional[str]
-    location_name_to_id: dict[str, str]
+    location_code_to_id: dict[str, str]
 
 
 def make_client(config: FolioConfig) -> FolioClient:
@@ -73,7 +73,7 @@ def resolve_reference_data(
     locations = list(
         fc.folio_get_all("/locations", key="locations", query="cql.allRecords=1")
     )
-    location_name_to_id = {loc["name"]: loc["id"] for loc in locations}
+    location_code_to_id = {loc["code"]: loc["id"] for loc in locations}
 
     return FolioReferenceData(
         material_type_id=material_type_id,
@@ -82,7 +82,7 @@ def resolve_reference_data(
         holdings_source_id=holdings_source_id,
         managed_stat_code_id=managed_stat_code_id,
         suppressed_stat_code_id=suppressed_stat_code_id,
-        location_name_to_id=location_name_to_id,
+        location_code_to_id=location_code_to_id,
     )
 
 

@@ -46,9 +46,11 @@ class MappingConfig:
     holdings: HoldingsMappingConfig
     items: ItemsMappingConfig
     managed_statistical_code: str
+    location_key_field: str
+    skip_unmapped_location: bool
     suppressed_statistical_code: Optional[str] = None
     suppress_non_managed_holdings: bool = True
-    location_map: dict[int, str] = field(default_factory=dict)
+    location_map: dict[str, str] = field(default_factory=dict)
     default_location: Optional[str] = None
 
 
@@ -72,7 +74,7 @@ def load_config(path: str) -> Config:
     items_raw = mapping_raw.get("items", {})
 
     location_map_raw = mapping_raw.get("location_map") or {}
-    location_map = {int(k): v for k, v in location_map_raw.items()}
+    location_map = {str(k): v for k, v in location_map_raw.items()}
 
     return Config(
         aspace=ASpaceConfig(
@@ -108,6 +110,8 @@ def load_config(path: str) -> Config:
             suppressed_statistical_code=mapping_raw.get("suppressed_statistical_code", None),
             suppress_non_managed_holdings=mapping_raw.get("suppress_non_managed_holdings", True),
             location_map=location_map,
+            location_key_field=mapping_raw["location_key_field"],
+            skip_unmapped_location=mapping_raw["skip_unmapped_location"],
             default_location=mapping_raw.get("default_location", None),
         ),
     )

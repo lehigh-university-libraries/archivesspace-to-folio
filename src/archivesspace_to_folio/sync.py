@@ -20,7 +20,9 @@ def sync(
     aspace_client = aspace.make_client(config.aspace)
     folio_client = folio.make_client(config.folio)
 
-    reference_data = _resolve_reference_data(folio_client, config)
+    folio_ref, aspace_locations = _resolve_reference_data(
+        aspace_client, folio_client, config
+    )
 
     repo_ids = [repository_id] if repository_id else config.aspace.repository_ids
     repos = aspace.get_repositories(aspace_client, repo_ids)
@@ -45,12 +47,15 @@ def sync(
                 config,
                 aspace_client,
                 folio_client,
-                reference_data,
+                folio_ref,
+                aspace_locations,
                 delete_mode,
             )
 
 
-def _resolve_reference_data(folio_client, config: Config) -> folio.FolioReferenceData:
+def _resolve_reference_data(
+    aspace_client, folio_client, config: Config
+) -> tuple[folio.FolioReferenceData, dict[str, dict]]:
     ea_relationship_id = None
     if config.mapping.items.electronic_access_relationship:
         ea_relationship_id = folio.lookup_ref(
@@ -65,7 +70,11 @@ def _resolve_reference_data(folio_client, config: Config) -> folio.FolioReferenc
         electronic_access_relationship_id=ea_relationship_id,
     )
     logger.info("Resolving FOLIO reference data...")
-    return folio.resolve_reference_data(folio_client, config.mapping)
+    folio_ref = folio.resolve_reference_data(folio_client, config.mapping)
+    logger.info("Loading ASpace location data...")
+    aspace_locations = aspace.get_locations(aspace_client)
+    logger.info("Loaded %d ASpace location(s)", len(aspace_locations))
+    return folio_ref, aspace_locations
 
 
 def _sync_collection(
@@ -74,7 +83,8 @@ def _sync_collection(
     config: Config,
     aspace_client,
     folio_client,
-    ref: folio.FolioReferenceData,
+    folio_ref: folio.FolioReferenceData,
+    aspace_locations: dict[str, dict],
     delete_mode: bool,
 ) -> None:
     coll_id = parse_final_id_from_uri(collection["uri"])
@@ -91,7 +101,7 @@ def _sync_collection(
     if delete_mode:
         logger.info("Deleting managed records for '%s'", title)
         folio.delete_managed_records(
-            folio_client, instance["id"], ref.managed_stat_code_id
+            folio_client, instance["id"], folio_ref.managed_stat_code_id
         )
         return
 
@@ -101,33 +111,42 @@ def _sync_collection(
         "Collection '%s': %d top-level container(s) after filtering", title, len(tlcs)
     )
 
-    location_groups: dict[Optional[int], list[dict]] = defaultdict(list)
+    location_groups: dict[Optional[str], list[dict]] = defaultdict(list)
     for tlc in tlcs:
-        loc_id = aspace.get_tlc_location_id(tlc)
-        if loc_id is None:
-            logger.warning("TLC %s has no current location", tlc.get("uri"))
-        location_groups[loc_id].append(tlc)
-
-    for aspace_loc_id, tlc_group in location_groups.items():
-        folio_location_name = (
-            config.mapping.location_map.get(aspace_loc_id)
-            if aspace_loc_id is not None
-            else None
+        loc_key = aspace.get_tlc_location_key(
+            tlc, aspace_locations, config.mapping.location_key_field
         )
-        folio_location_name = folio_location_name or config.mapping.default_location
-        if not folio_location_name:
+        if loc_key is None:
+            logger.warning("TLC %s has no location", tlc.get("uri"))
+        location_groups[loc_key].append(tlc)
+
+    for loc_key, tlc_group in location_groups.items():
+        if loc_key is not None and loc_key not in config.mapping.location_map:
+            if config.mapping.skip_unmapped_location:
+                logger.warning(
+                    "ASpace location key %r not in location_map (config problem); skipping %d TLC(s)",
+                    loc_key,
+                    len(tlc_group),
+                )
+                continue
+
+        folio_location_code = (
+            config.mapping.location_map.get(loc_key) if loc_key is not None else None
+        )
+        folio_location_code = folio_location_code or config.mapping.default_location
+        if not folio_location_code:
             logger.warning(
-                "No FOLIO location mapping for ASpace location ID %s; skipping %d TLC(s)",
-                aspace_loc_id,
+                "No FOLIO location for ASpace location key %r; skipping %d TLC(s)",
+                loc_key,
                 len(tlc_group),
             )
             continue
 
-        folio_location_id = ref.location_name_to_id.get(folio_location_name)
+        folio_location_id = folio_ref.location_code_to_id.get(folio_location_code)
         if not folio_location_id:
             logger.warning(
                 "FOLIO location '%s' not found; skipping %d TLC(s)",
-                folio_location_name,
+                folio_location_code,
                 len(tlc_group),
             )
             continue
@@ -137,7 +156,7 @@ def _sync_collection(
             instance["id"],
             folio_location_id,
             collection,
-            ref,
+            folio_ref,
             config.mapping,
         )
         if holdings_created:
@@ -146,8 +165,8 @@ def _sync_collection(
                     folio_client,
                     instance["id"],
                     holdings["id"],
-                    ref.managed_stat_code_id,
-                    ref.suppressed_stat_code_id,
+                    folio_ref.managed_stat_code_id,
+                    folio_ref.suppressed_stat_code_id,
                 )
         for tlc in tlc_group:
             folio.create_or_update_item(
@@ -155,6 +174,6 @@ def _sync_collection(
                 holdings["id"],
                 tlc,
                 repo_id,
-                ref,
+                folio_ref,
                 config.mapping,
             )

@@ -97,14 +97,43 @@ def filter_child_tlcs(tlcs: list[dict]) -> list[dict]:
     return roots
 
 
+def get_locations(client: ASnakeClient) -> dict[str, dict]:
+    page = 1
+    locations = {}
+    while True:
+        resp = client.get("locations", params={"page": page, "page_size": 100}).json()
+        for loc in resp.get("results", []):
+            locations[loc["uri"]] = loc
+        if resp.get("last_page", 1) <= page:
+            break
+        page += 1
+    return locations
+
+
 def get_tlc_location_id(tlc: dict) -> Optional[int]:
-    # TODO: See if this field is ever actually used.
-    for loc in tlc.get("container_locations", []):
-        if loc.get("status") == "current":
-            ref = loc.get("ref", "")
-            if ref:
-                try:
-                    return parse_final_id_from_uri(ref)
-                except (ValueError, IndexError):
-                    pass
-    return None
+    uris = tlc.get("location_uris", [])
+    if not uris:
+        return None
+    if len(uris) > 1:
+        logger.warning(
+            "TLC %s has %d location URIs; using first",
+            tlc.get("uri"),
+            len(uris),
+        )
+    try:
+        return parse_final_id_from_uri(uris[0])
+    except (ValueError, IndexError):
+        return None
+
+
+def get_tlc_location_key(
+    tlc: dict, locations: dict[str, dict], key_field: str = "classification"
+) -> Optional[str]:
+    loc_id = get_tlc_location_id(tlc)
+    if loc_id is None:
+        return None
+    location = locations.get(f"/locations/{loc_id}")
+    if location is None:
+        logger.warning("ASpace location ID %d not found in loaded locations", loc_id)
+        return None
+    return location.get(key_field)

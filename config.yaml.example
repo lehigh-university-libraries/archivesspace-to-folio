@@ -68,10 +68,18 @@ mapping:
   # Whether to suppress existing non-managed holdings (and their items) when a new managed holdings is added.
   suppress_non_managed_holdings: true
 
-  # Mapping from ASpace location ID (integer) to FOLIO location name.
-  # The FOLIO location UUID is looked up at startup by name.
-  location_map:
-    # 12345: "Main Library Stacks"
+  # ASpace location field used as the key for location_map below.
+  # Other useful fields: "title", "building".
+  location_key_field: "classification"
 
-  # Fallback FOLIO location name for TLCs with no ASpace location set.
-  # default_location: "Main Library Stacks"
+  # If true, TLCs whose ASpace location key has no entry in location_map are
+  # skipped. Set to false to fall through to default_location instead.
+  skip_unmapped_location: true
+
+  # Mapping from ASpace location key (value of location_key_field) to FOLIO location code.
+  # The FOLIO location UUID is looked up at startup by code.
+  location_map:
+    # "SC-E": "SPCOLL_EAST"
+
+  # Fallback FOLIO location code for TLCs with no ASpace location set.
+  # default_location: "MAIN-STACKS"
