@@ -6,7 +6,7 @@ For each published, complete ArchivesSpace collection that has a matching FOLIO 
 
 - Creates a **holdings record** per unique ASpace permanent location
 - Creates an **item record** per top-level container (box, folder, etc.)
-- Tags all managed records with a configurable statistical code (`MANAGED_VIA_ARCHIVESSPACE`)
+- Tags all managed records with configurable statistical codes
 - Optionally suppresses any pre-existing unmanaged holdings and items on the same instance
 
 The tool is designed to run as a cron job (e.g. daily), and is fully idempotent — re-running it updates existing managed records rather than creating duplicates.
@@ -31,17 +31,7 @@ Copy `config.yaml.example` to `config.yaml` and fill in your credentials and set
 cp config.yaml.example config.yaml
 ```
 
-Key settings:
-
-| Setting | Description |
-|---|---|
-| `aspace.base_url` | ArchivesSpace base URL |
-| `aspace.repository_ids` | List of repo IDs to process; empty = all repos |
-| `folio.gateway_url` | FOLIO Okapi gateway URL |
-| `filters.published` | Only process published resources (default: `true`) |
-| `filters.finding_aid_status` | Only process resources with this status (default: `"Completed"`); set to `null` to skip |
-| `settings.statistical_code` | Name of the FOLIO statistical code that marks managed records |
-| `settings.location_map` | Maps ASpace location IDs (integers) to FOLIO location names |
+See [`config.yaml.example`](config.yaml.example) for all available options and documentation.
 
 ## Usage
 
@@ -82,7 +72,13 @@ Instance records must be created separately; this tool does not create or delete
 
 ## Managed record lifecycle
 
-- Records are identified as managed by the configured statistical code.
-- On each run, managed records are updated if their source data has changed.
-- When a new managed holdings record is added to an instance that has pre-existing unmanaged holdings, the unmanaged holdings (and their items) are suppressed (`discoverySuppress=true`). This behavior is configurable.
-- The `--delete` flag removes all managed holdings and items but does not unsuppress previously suppressed records.
+Records created by this tool are identified by two configurable statistical codes:
+
+- **`managed_statistical_code`** — applied to all holdings and items touched by the tool (including pre-existing holdings that the tool adopts)
+- **`owned_statistical_code`** — applied only to holdings records that the tool itself created
+
+On each run, managed records are updated if their source data has changed.
+
+When a new managed holdings record is added to an instance that already has unmanaged holdings, the unmanaged holdings (and their items) are optionally suppressed (`discoverySuppress=true`). This behavior is configurable.
+
+The `--delete` flag removes all managed items and any holdings the tool created. Holdings that were adopted (pre-existing when the tool first ran) are instead released: the managed statistical code is removed and they are unsuppressed if the tool had suppressed them.
