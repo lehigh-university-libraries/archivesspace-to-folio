@@ -20,7 +20,7 @@ The tool is designed to run as a cron job (e.g. daily), and is fully idempotent 
 ## Installation
 
 ```bash
-pip install -e .
+pip install -r requirements.txt
 ```
 
 ## Configuration
