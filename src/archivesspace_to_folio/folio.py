@@ -56,14 +56,14 @@ def resolve_reference_data(
         fc,
         "/statistical-codes",
         "statisticalCodes",
-        "name",
+        "code",
         settings.managed_statistical_code,
     )
     owned_stat_code_id = lookup_ref(
         fc,
         "/statistical-codes",
         "statisticalCodes",
-        "name",
+        "code",
         settings.owned_statistical_code,
     )
     suppressed_stat_code_id = (
@@ -71,7 +71,7 @@ def resolve_reference_data(
             fc,
             "/statistical-codes",
             "statisticalCodes",
-            "name",
+            "code",
             settings.suppressed_statistical_code,
         )
         if settings.suppressed_statistical_code
@@ -200,7 +200,10 @@ def create_or_update_holdings(
 
     result = fc.folio_post(
         "/holdings-storage/holdings",
-        payload={**desired, "statisticalCodeIds": [ref.managed_stat_code_id, ref.owned_stat_code_id]},
+        payload={
+            **desired,
+            "statisticalCodeIds": [ref.managed_stat_code_id, ref.owned_stat_code_id],
+        },
     )
     logger.info("Created holdings %s", result["id"])
     return result, True
@@ -320,7 +323,9 @@ def delete_managed_records(
             _release_adopted_holdings(fc, holdings, ref)
 
 
-def _release_adopted_holdings(fc: FolioClient, holdings: dict, ref: FolioReferenceData) -> None:
+def _release_adopted_holdings(
+    fc: FolioClient, holdings: dict, ref: FolioReferenceData
+) -> None:
     updated = dict(holdings)
     codes_to_remove = {ref.managed_stat_code_id}
     if ref.suppressed_stat_code_id:

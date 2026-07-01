@@ -36,6 +36,7 @@ filters:
   finding_aid_status: "completed"
 
 mapping:
+  # These values are FOLIO statistical code *codes* (not names).
   managed_statistical_code: "MANAGED_VIA_ARCHIVESSPACE"
   owned_statistical_code: "OWNED_VIA_ARCHIVESSPACE"
   suppressed_statistical_code: "SUPPRESSED_VIA_ARCHIVESSPACE"
