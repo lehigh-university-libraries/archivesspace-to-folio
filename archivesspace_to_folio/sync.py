@@ -104,9 +104,8 @@ def _sync_collection(
         return
 
     tlcs = aspace.get_top_containers(aspace_client, repo_id, coll_id)
-    tlcs = aspace.filter_child_tlcs(tlcs)
     logger.info(
-        "Collection '%s': %d top-level container(s) after filtering", title, len(tlcs)
+        "Collection '%s': %d top-level container(s)", title, len(tlcs)
     )
 
     location_groups: dict[Optional[str], list[dict]] = defaultdict(list)

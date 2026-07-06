@@ -75,28 +75,6 @@ def get_top_containers(
     return resp.get("response", {}).get("docs", [])
 
 
-def filter_child_tlcs(tlcs: list[dict]) -> list[dict]:
-    # TODO: Need test case for child container filtering.
-    logger.warning("Child container filtering is not yet tested.")
-    tlc_uris = {t.get("uri") for t in tlcs}
-    roots = []
-    for tlc in tlcs:
-        parent_ref = tlc.get("parent", {})
-        if isinstance(parent_ref, dict):
-            parent_uri = parent_ref.get("ref")
-        else:
-            parent_uri = None
-        if parent_uri and parent_uri in tlc_uris:
-            logger.warning(
-                "Top container %s is a child of %s — skipping",
-                tlc.get("uri"),
-                parent_uri,
-            )
-        else:
-            roots.append(tlc)
-    return roots
-
-
 def get_locations(client: ASnakeClient) -> dict[str, dict]:
     page = 1
     locations = {}
