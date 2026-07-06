@@ -55,6 +55,11 @@ python -m archivesspace_to_folio --repository 7 --collection 216
 python -m archivesspace_to_folio --repository 7 --collection 216 --delete
 ```
 
+**Dry run** (log what would happen without writing to FOLIO):
+```bash
+python -m archivesspace_to_folio --dry-run
+```
+
 **Adjust log verbosity:**
 ```bash
 python -m archivesspace_to_folio --log-level DEBUG

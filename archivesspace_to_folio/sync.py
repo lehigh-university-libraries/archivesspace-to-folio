@@ -16,6 +16,7 @@ def sync(
     repository_id: Optional[int] = None,
     resource_id: Optional[int] = None,
     delete_mode: bool = False,
+    dry_run: bool = False,
 ) -> None:
     aspace_client = aspace.make_client(config.aspace)
     folio_client = folio.make_client(config.folio)
@@ -50,6 +51,7 @@ def sync(
                 folio_ref,
                 aspace_locations,
                 delete_mode,
+                dry_run,
             )
 
 
@@ -86,6 +88,7 @@ def _sync_collection(
     folio_ref: folio.FolioReferenceData,
     aspace_locations: dict[str, dict],
     delete_mode: bool,
+    dry_run: bool,
 ) -> None:
     coll_id = parse_final_id_from_uri(collection["uri"])
     aspace_url = f"https://{config.aspace.public_domain}/repositories/{repo_id}/resources/{coll_id}"
@@ -99,6 +102,9 @@ def _sync_collection(
         return
 
     if delete_mode:
+        if dry_run:
+            logger.info("[DRY-RUN] Would delete managed records for '%s'", title)
+            return
         logger.info("Deleting managed records for '%s'", title)
         folio.delete_managed_records(folio_client, instance["id"], folio_ref)
         return
@@ -145,6 +151,15 @@ def _sync_collection(
                 "FOLIO location '%s' not found; skipping %d TLC(s)",
                 folio_location_code,
                 len(tlc_group),
+            )
+            continue
+
+        if dry_run:
+            logger.info(
+                "[DRY-RUN] Would sync %d TLC(s) for '%s' at location '%s'",
+                len(tlc_group),
+                title,
+                folio_location_code,
             )
             continue
 

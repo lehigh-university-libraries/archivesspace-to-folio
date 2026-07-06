@@ -37,6 +37,12 @@ def main() -> None:
         help="Delete all managed holdings and items instead of syncing",
     )
     parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        default=False,
+        help="Log actions but make no API writes",
+    )
+    parser.add_argument(
         "--log-level",
         default="INFO",
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
@@ -64,6 +70,7 @@ def main() -> None:
         repository_id=args.repository,
         resource_id=args.collection,
         delete_mode=args.delete,
+        dry_run=args.dry_run,
     )
 
 
