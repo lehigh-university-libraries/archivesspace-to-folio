@@ -3,7 +3,7 @@ from typing import Optional
 
 from asnake.client import ASnakeClient
 
-from .config import ASpaceConfig, FiltersConfig
+from .config import ASpaceConfig, CollectionFiltersConfig
 from .utils import parse_final_id_from_uri
 
 logger = logging.getLogger(__name__)
@@ -30,7 +30,7 @@ def get_repositories(client: ASnakeClient, repo_ids: list[int]) -> list[dict]:
 def get_collections(
     client: ASnakeClient,
     repo_id: int,
-    filters: FiltersConfig,
+    filters: CollectionFiltersConfig,
     resource_id: Optional[int] = None,
 ) -> list[dict]:
     if resource_id is not None:
@@ -56,7 +56,7 @@ def get_collections(
 
 
 def get_collection(
-    client: ASnakeClient, uri: str, filters: FiltersConfig
+    client: ASnakeClient, uri: str, filters: CollectionFiltersConfig
 ) -> Optional[dict]:
     resource = client.get(uri).json()
     if not isinstance(resource, dict) or "uri" not in resource:
@@ -64,7 +64,7 @@ def get_collection(
     return resource if _matches_filters(resource, filters) else None
 
 
-def _matches_filters(resource: dict, filters: FiltersConfig) -> bool:
+def _matches_filters(resource: dict, filters: CollectionFiltersConfig) -> bool:
     if filters.published is not None and resource.get("publish") != filters.published:
         return False
     if filters.finding_aid_status is not None:

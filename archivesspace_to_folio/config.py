@@ -9,7 +9,6 @@ class ASpaceConfig:
     username: str
     password: str
     public_domain: str = ""
-    repository_ids: list[int] = field(default_factory=list)
 
 
 @dataclass
@@ -21,9 +20,21 @@ class FolioConfig:
 
 
 @dataclass
-class FiltersConfig:
+class CollectionFiltersConfig:
     published: Optional[bool] = True
     finding_aid_status: Optional[str] = "Completed"
+
+
+@dataclass
+class RepositoryFiltersConfig:
+    published: Optional[bool] = True
+    repository_ids: list[int] = field(default_factory=list)
+
+
+@dataclass
+class FiltersConfig:
+    collections: CollectionFiltersConfig = field(default_factory=CollectionFiltersConfig)
+    repositories: RepositoryFiltersConfig = field(default_factory=RepositoryFiltersConfig)
 
 
 @dataclass
@@ -71,6 +82,8 @@ def load_config(path: str) -> Config:
     aspace_raw = raw.get("aspace", {})
     folio_raw = raw.get("folio", {})
     filters_raw = raw.get("filters", {})
+    collections_raw = filters_raw.get("collections", {})
+    repositories_raw = filters_raw.get("repositories", {})
     mapping_raw = raw.get("mapping", {})
     holdings_raw = mapping_raw.get("holdings", {})
     items_raw = mapping_raw.get("items", {})
@@ -85,7 +98,6 @@ def load_config(path: str) -> Config:
             username=aspace_raw["username"],
             password=aspace_raw["password"],
             public_domain=aspace_raw.get("public_domain", ""),
-            repository_ids=[int(r) for r in aspace_raw.get("repository_ids", [])],
         ),
         folio=FolioConfig(
             gateway_url=folio_raw["gateway_url"],
@@ -94,8 +106,14 @@ def load_config(path: str) -> Config:
             password=folio_raw["password"],
         ),
         filters=FiltersConfig(
-            published=filters_raw.get("published", None),
-            finding_aid_status=filters_raw.get("finding_aid_status", None),
+            collections=CollectionFiltersConfig(
+                published=collections_raw.get("published", None),
+                finding_aid_status=collections_raw.get("finding_aid_status", None),
+            ),
+            repositories=RepositoryFiltersConfig(
+                published=repositories_raw.get("published", None),
+                repository_ids=[int(r) for r in repositories_raw.get("repository_ids", [])],
+            ),
         ),
         mapping=MappingConfig(
             holdings=HoldingsMappingConfig(

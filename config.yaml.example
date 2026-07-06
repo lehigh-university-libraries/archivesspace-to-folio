@@ -7,8 +7,6 @@ aspace:
   base_url: https://archivesspace.example.edu/api
   username: ""
   password: ""
-  # List of repository IDs to process. Empty list = all repositories.
-  repository_ids: []
   # Public hostname used to build collection URLs for FOLIO electronic access matching.
   public_domain: archivesspace.example.edu
 
@@ -36,9 +34,15 @@ folio:
   #   search.instances.collection.get
 
 filters:
-  # Set to null or remove key to skip that filter.
-  published: true
-  finding_aid_status: "completed"
+  repositories:
+    # Set to null or remove key to skip that filter.
+    published: true
+    # List of repository IDs to process. Empty list = all repositories.
+    repository_ids: []
+  collections:
+    # Set to null or remove key to skip that filter.
+    published: true
+    finding_aid_status: "completed"
 
 mapping:
   # These values are FOLIO statistical code *codes* (not names).

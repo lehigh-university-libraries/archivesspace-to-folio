@@ -31,12 +31,17 @@ def sync(
     state = load_state(config.state_file) if config.state_file else {}
     use_incremental = config.state_file and not resource_id and not delete_mode
 
-    repo_ids = [repository_id] if repository_id else config.aspace.repository_ids
+    repo_ids = [repository_id] if repository_id else config.filters.repositories.repository_ids
     repos = aspace.get_repositories(aspace_client, repo_ids)
     logger.info("Processing %d repository/repositories", len(repos))
 
     for repo in repos:
         repo_id = parse_final_id_from_uri(repo["uri"])
+        repo_filters = config.filters.repositories
+        if repo_filters.published is not None and repo.get("publish") != repo_filters.published:
+            logger.info("Skipping repository %d: does not match repository filters", repo_id)
+            continue
+
         last_run = state.get(str(repo_id)) if use_incremental else None
 
         if last_run is not None:
@@ -52,7 +57,7 @@ def sync(
             collections = [
                 c
                 for uri in collection_uris
-                if (c := aspace.get_collection(aspace_client, uri, config.filters))
+                if (c := aspace.get_collection(aspace_client, uri, config.filters.collections))
             ]
         else:
             collections = aspace.get_collections(
