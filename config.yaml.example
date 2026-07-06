@@ -67,8 +67,8 @@ mapping:
       # enumeration: "{indicator}"
       # chronology: "fn:my_chronology_function"
 
-  # Whether to suppress existing non-managed holdings (and their items) when a new managed holdings is added.
-  suppress_non_managed_holdings: true
+  # Whether to suppress existing non-managed holdings and items when managed records are created or updated.
+  suppress_non_managed: true
 
   # ASpace location field used as the key for location_map below.
   # Other useful fields: "title", "building".

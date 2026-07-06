@@ -196,6 +196,7 @@ def create_or_update_holdings(
                 payload=_strip_fields(updated, _HOLDINGS_PUT_EXCLUDE_FIELDS),
             )
             logger.info("Updated holdings %s", updated["id"])
+            return updated, True
         return updated, False
 
     result = fc.folio_post(
@@ -239,6 +240,7 @@ def create_or_update_item(
         if _record_differs(existing, desired):
             fc.folio_put(f"/item-storage/items/{updated['id']}", payload=updated)
             logger.info("Updated item %s (barcode %s)", updated["id"], barcode)
+            return updated, True
         return updated, False
 
     result = fc.folio_post("/item-storage/items", payload=desired)
@@ -305,6 +307,37 @@ def suppress_non_managed_holdings(
                     logger.info(
                         "Suppressed item %s on non-managed holdings", item["id"]
                     )
+
+
+def suppress_non_managed_items(
+    fc: FolioClient,
+    holdings_id: str,
+    managed_stat_code_id: str,
+    suppressed_stat_code_id: Optional[str] = None,
+) -> None:
+    items = list(
+        fc.folio_get_all(
+            "/item-storage/items",
+            key="items",
+            query=f'holdingsRecordId=="{holdings_id}"',
+        )
+    )
+    for item in items:
+        if managed_stat_code_id in item.get("statisticalCodeIds", []):
+            continue
+        already_suppressed = item.get("discoverySuppress")
+        if not already_suppressed or (
+            suppressed_stat_code_id
+            and suppressed_stat_code_id not in item.get("statisticalCodeIds", [])
+        ):
+            item["discoverySuppress"] = True
+            if suppressed_stat_code_id:
+                item = _ensure_stat_code(item, suppressed_stat_code_id)
+            if not already_suppressed or _record_differs(
+                item, {"statisticalCodeIds": [suppressed_stat_code_id]}
+            ):
+                fc.folio_put(f"/item-storage/items/{item['id']}", payload=item)
+                logger.info("Suppressed non-managed item %s on managed holdings", item["id"])
 
 
 def delete_managed_records(

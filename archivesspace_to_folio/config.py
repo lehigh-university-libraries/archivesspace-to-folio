@@ -50,7 +50,7 @@ class MappingConfig:
     location_key_field: str
     skip_unmapped_location: bool
     suppressed_statistical_code: Optional[str] = None
-    suppress_non_managed_holdings: bool = True
+    suppress_non_managed: bool = True
     location_map: dict[str, str] = field(default_factory=dict)
     default_location: Optional[str] = None
 
@@ -110,7 +110,7 @@ def load_config(path: str) -> Config:
             managed_statistical_code=mapping_raw["managed_statistical_code"],
             owned_statistical_code=mapping_raw["owned_statistical_code"],
             suppressed_statistical_code=mapping_raw.get("suppressed_statistical_code", None),
-            suppress_non_managed_holdings=mapping_raw.get("suppress_non_managed_holdings", True),
+            suppress_non_managed=mapping_raw.get("suppress_non_managed", True),
             location_map=location_map,
             location_key_field=mapping_raw["location_key_field"],
             skip_unmapped_location=mapping_raw["skip_unmapped_location"],

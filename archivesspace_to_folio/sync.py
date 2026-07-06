@@ -148,7 +148,7 @@ def _sync_collection(
             )
             continue
 
-        holdings, holdings_created = folio.create_or_update_holdings(
+        holdings, holdings_changed = folio.create_or_update_holdings(
             folio_client,
             instance["id"],
             folio_location_id,
@@ -156,17 +156,9 @@ def _sync_collection(
             folio_ref,
             config.mapping,
         )
-        if holdings_created:
-            if config.mapping.suppress_non_managed_holdings:
-                folio.suppress_non_managed_holdings(
-                    folio_client,
-                    instance["id"],
-                    holdings["id"],
-                    folio_ref.managed_stat_code_id,
-                    folio_ref.suppressed_stat_code_id,
-                )
+        any_item_changed = False
         for tlc in tlc_group:
-            folio.create_or_update_item(
+            _, item_changed = folio.create_or_update_item(
                 folio_client,
                 holdings["id"],
                 tlc,
@@ -174,3 +166,19 @@ def _sync_collection(
                 folio_ref,
                 config.mapping,
             )
+            any_item_changed = any_item_changed or item_changed
+        if (holdings_changed or any_item_changed) and config.mapping.suppress_non_managed:
+            folio.suppress_non_managed_holdings(
+                folio_client,
+                instance["id"],
+                holdings["id"],
+                folio_ref.managed_stat_code_id,
+                folio_ref.suppressed_stat_code_id,
+            )
+            if any_item_changed:
+                folio.suppress_non_managed_items(
+                    folio_client,
+                    holdings["id"],
+                    folio_ref.managed_stat_code_id,
+                    folio_ref.suppressed_stat_code_id,
+                )
