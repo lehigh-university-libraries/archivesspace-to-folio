@@ -61,6 +61,7 @@ class Config:
     folio: FolioConfig
     filters: FiltersConfig
     mapping: MappingConfig
+    state_file: Optional[str] = None
 
 
 def load_config(path: str) -> Config:
@@ -78,6 +79,7 @@ def load_config(path: str) -> Config:
     location_map = {str(k): v for k, v in location_map_raw.items()}
 
     return Config(
+        state_file=raw.get("state_file", None),
         aspace=ASpaceConfig(
             base_url=aspace_raw["base_url"],
             username=aspace_raw["username"],

@@ -1,3 +1,8 @@
+# Path to a JSON file for storing per-repository sync timestamps.
+# When set, each run processes only collections whose TLCs were modified since the last run.
+# Omit to perform a full sync every time.
+state_file: ./state.json
+
 aspace:
   base_url: https://archivesspace.example.edu/api
   username: ""

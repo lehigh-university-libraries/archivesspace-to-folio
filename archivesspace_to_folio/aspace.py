@@ -34,10 +34,10 @@ def get_collections(
     resource_id: Optional[int] = None,
 ) -> list[dict]:
     if resource_id is not None:
-        resource = client.get(f"repositories/{repo_id}/resources/{resource_id}").json()
-        if _matches_filters(resource, filters):
-            return [resource]
-        return []
+        result = get_collection(
+            client, f"repositories/{repo_id}/resources/{resource_id}", filters
+        )
+        return [result] if result else []
 
     page = 1
     results = []
@@ -55,6 +55,15 @@ def get_collections(
     return results
 
 
+def get_collection(
+    client: ASnakeClient, uri: str, filters: FiltersConfig
+) -> Optional[dict]:
+    resource = client.get(uri).json()
+    if not isinstance(resource, dict) or "uri" not in resource:
+        return None
+    return resource if _matches_filters(resource, filters) else None
+
+
 def _matches_filters(resource: dict, filters: FiltersConfig) -> bool:
     if filters.published is not None and resource.get("publish") != filters.published:
         return False
@@ -62,6 +71,27 @@ def _matches_filters(resource: dict, filters: FiltersConfig) -> bool:
         if resource.get("finding_aid_status") != filters.finding_aid_status:
             return False
     return True
+
+
+def get_modified_collection_uris(
+    client: ASnakeClient, repo_id: int, modified_since: int
+) -> set[str]:
+    # Returns URIs of collections that have at least one TLC modified since the timestamp,
+    # not collections whose own records changed.
+    collection_uris: set[str] = set()
+    page = 1
+    while True:
+        resp = client.get(
+            f"repositories/{repo_id}/top_containers",
+            params={"modified_since": modified_since, "page": page, "page_size": 250},
+        ).json()
+        for tlc in resp.get("results", []):
+            for coll_ref in tlc.get("collection", []):
+                collection_uris.add(coll_ref["ref"])
+        if resp.get("last_page", 1) <= page:
+            break
+        page += 1
+    return collection_uris
 
 
 def get_top_containers(

@@ -1,4 +1,6 @@
 import logging
+import time
+from datetime import datetime
 from collections import defaultdict
 from typing import Optional
 
@@ -6,7 +8,7 @@ from . import aspace as aspace
 from . import field_functions
 from . import folio as folio
 from .config import Config
-from .utils import parse_final_id_from_uri
+from .utils import load_state, parse_final_id_from_uri, save_state
 
 logger = logging.getLogger(__name__)
 
@@ -25,21 +27,43 @@ def sync(
         aspace_client, folio_client, config
     )
 
+    run_timestamp = int(time.time())
+    state = load_state(config.state_file) if config.state_file else {}
+    use_incremental = config.state_file and not resource_id and not delete_mode
+
     repo_ids = [repository_id] if repository_id else config.aspace.repository_ids
     repos = aspace.get_repositories(aspace_client, repo_ids)
     logger.info("Processing %d repository/repositories", len(repos))
 
     for repo in repos:
         repo_id = parse_final_id_from_uri(repo["uri"])
-        collections = aspace.get_collections(
-            aspace_client,
-            repo_id,
-            config.filters,
-            resource_id=resource_id,
-        )
-        logger.info(
-            "Repository %d: %d collection(s) in scope", repo_id, len(collections)
-        )
+        last_run = state.get(str(repo_id)) if use_incremental else None
+
+        if last_run is not None:
+            collection_uris = aspace.get_modified_collection_uris(
+                aspace_client, repo_id, last_run
+            )
+            logger.info(
+                "Repository %d: %d collection(s) with TLCs modified since last run at %s",
+                repo_id,
+                len(collection_uris),
+                datetime.fromtimestamp(last_run).strftime("%Y-%m-%d %H:%M:%S"),
+            )
+            collections = [
+                c
+                for uri in collection_uris
+                if (c := aspace.get_collection(aspace_client, uri, config.filters))
+            ]
+        else:
+            collections = aspace.get_collections(
+                aspace_client,
+                repo_id,
+                config.filters,
+                resource_id=resource_id,
+            )
+            logger.info(
+                "Repository %d: %d collection(s) in scope", repo_id, len(collections)
+            )
 
         for collection in collections:
             _sync_collection(
@@ -53,6 +77,10 @@ def sync(
                 delete_mode,
                 dry_run,
             )
+
+        if use_incremental and not dry_run:
+            state[str(repo_id)] = run_timestamp
+            save_state(config.state_file, state)
 
 
 def _resolve_reference_data(
@@ -110,9 +138,7 @@ def _sync_collection(
         return
 
     tlcs = aspace.get_top_containers(aspace_client, repo_id, coll_id)
-    logger.info(
-        "Collection '%s': %d top-level container(s)", title, len(tlcs)
-    )
+    logger.info("Collection '%s': %d top-level container(s)", title, len(tlcs))
 
     location_groups: dict[Optional[str], list[dict]] = defaultdict(list)
     for tlc in tlcs:
@@ -182,7 +208,9 @@ def _sync_collection(
                 config.mapping,
             )
             any_item_changed = any_item_changed or item_changed
-        if (holdings_changed or any_item_changed) and config.mapping.suppress_non_managed:
+        if (
+            holdings_changed or any_item_changed
+        ) and config.mapping.suppress_non_managed:
             folio.suppress_non_managed_holdings(
                 folio_client,
                 instance["id"],

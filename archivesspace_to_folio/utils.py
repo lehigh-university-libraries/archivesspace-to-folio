@@ -1,4 +1,6 @@
+import json
 import logging
+import os
 import re
 from . import field_functions
 
@@ -38,3 +40,15 @@ def render_field_value(value_spec: str, record: dict):
             raise ValueError(f"Unknown field function: {func_name!r}")
         return func(record)
     return render_aspace_format(value_spec, record)
+
+
+def load_state(path: str) -> dict:
+    if os.path.exists(path):
+        with open(path) as f:
+            return json.load(f)
+    return {}
+
+
+def save_state(path: str, state: dict) -> None:
+    with open(path, "w") as f:
+        json.dump(state, f, indent=2)
