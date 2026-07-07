@@ -1,3 +1,4 @@
+import dacite
 from dataclasses import dataclass, field
 from typing import Optional
 import yaml
@@ -21,13 +22,13 @@ class FolioConfig:
 
 @dataclass
 class CollectionFiltersConfig:
-    published: Optional[bool] = True
-    finding_aid_status: Optional[str] = "Completed"
+    published: Optional[bool] = None
+    finding_aid_status: Optional[str] = None
 
 
 @dataclass
 class RepositoryFiltersConfig:
-    published: Optional[bool] = True
+    published: Optional[bool] = None
     repository_ids: list[int] = field(default_factory=list)
 
 
@@ -78,62 +79,4 @@ class Config:
 def load_config(path: str) -> Config:
     with open(path, "r") as f:
         raw = yaml.safe_load(f)
-
-    aspace_raw = raw.get("aspace", {})
-    folio_raw = raw.get("folio", {})
-    filters_raw = raw.get("filters", {})
-    collections_raw = filters_raw.get("collections", {})
-    repositories_raw = filters_raw.get("repositories", {})
-    mapping_raw = raw.get("mapping", {})
-    holdings_raw = mapping_raw.get("holdings", {})
-    items_raw = mapping_raw.get("items", {})
-
-    location_map_raw = mapping_raw.get("location_map") or {}
-    location_map = {str(k): v for k, v in location_map_raw.items()}
-
-    return Config(
-        state_file=raw.get("state_file", None),
-        aspace=ASpaceConfig(
-            base_url=aspace_raw["base_url"],
-            username=aspace_raw["username"],
-            password=aspace_raw["password"],
-            public_domain=aspace_raw.get("public_domain", ""),
-        ),
-        folio=FolioConfig(
-            gateway_url=folio_raw["gateway_url"],
-            tenant_id=folio_raw["tenant_id"],
-            username=folio_raw["username"],
-            password=folio_raw["password"],
-        ),
-        filters=FiltersConfig(
-            collections=CollectionFiltersConfig(
-                published=collections_raw.get("published", None),
-                finding_aid_status=collections_raw.get("finding_aid_status", None),
-            ),
-            repositories=RepositoryFiltersConfig(
-                published=repositories_raw.get("published", None),
-                repository_ids=[int(r) for r in repositories_raw.get("repository_ids", [])],
-            ),
-        ),
-        mapping=MappingConfig(
-            holdings=HoldingsMappingConfig(
-                type=holdings_raw["type"],
-                source=holdings_raw.get("source", "FOLIO"),
-                fields=holdings_raw.get("fields") or {},
-            ),
-            items=ItemsMappingConfig(
-                material_type=items_raw["material_type"],
-                permanent_loan_type=items_raw["permanent_loan_type"],
-                electronic_access_relationship=items_raw.get("electronic_access_relationship", None),
-                fields=items_raw.get("fields") or {},
-            ),
-            managed_statistical_code=mapping_raw["managed_statistical_code"],
-            owned_statistical_code=mapping_raw["owned_statistical_code"],
-            suppressed_statistical_code=mapping_raw.get("suppressed_statistical_code", None),
-            suppress_non_managed=mapping_raw.get("suppress_non_managed", True),
-            location_map=location_map,
-            location_key_field=mapping_raw["location_key_field"],
-            skip_unmapped_location=mapping_raw["skip_unmapped_location"],
-            default_location=mapping_raw.get("default_location", None),
-        ),
-    )
+    return dacite.from_dict(Config, raw)

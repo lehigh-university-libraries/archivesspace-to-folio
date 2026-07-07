@@ -89,8 +89,8 @@ mapping:
 
   # Mapping from ASpace location key (value of location_key_field) to FOLIO location code.
   # The FOLIO location UUID is looked up at startup by code.
-  location_map:
-    # "SC-E": "SPCOLL_EAST"
+  # location_map:
+  #   "SC-E": "SPCOLL_EAST"
 
   # Fallback FOLIO location code for TLCs with no ASpace location set.
   # default_location: "MAIN-STACKS"

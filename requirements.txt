@@ -1,3 +1,4 @@
 folioclient~=1.0.10
 ArchivesSnake~=0.10.1
 pyyaml~=6.0.3
+dacite~=1.8.1

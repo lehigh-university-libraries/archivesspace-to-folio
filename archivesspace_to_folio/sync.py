@@ -63,7 +63,7 @@ def sync(
             collections = aspace.get_collections(
                 aspace_client,
                 repo_id,
-                config.filters,
+                config.filters.collections,
                 resource_id=resource_id,
             )
             logger.info(
