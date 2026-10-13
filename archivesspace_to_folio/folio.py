@@ -251,7 +251,7 @@ def create_or_update_item(
 def suppress_non_managed_holdings(
     fc: FolioClient,
     instance_id: str,
-    except_id: str,
+    except_ids: set[str],
     managed_stat_code_id: str,
     suppressed_stat_code_id: Optional[str] = None,
 ) -> None:
@@ -263,7 +263,7 @@ def suppress_non_managed_holdings(
         )
     )
     for holdings in all_holdings:
-        if holdings["id"] == except_id:
+        if holdings["id"] in except_ids:
             continue
         if managed_stat_code_id in holdings.get("statisticalCodeIds", []):
             continue

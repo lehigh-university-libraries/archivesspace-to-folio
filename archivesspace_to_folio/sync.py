@@ -154,6 +154,8 @@ def _sync_collection(
             logger.warning("TLC %s has no location", tlc.get("uri"))
         location_groups[loc_key].append(tlc)
 
+    managed_holdings_ids: set[str] = set()
+    something_changed = False
     for loc_key, tlc_group in location_groups.items():
         if loc_key is not None and loc_key not in config.mapping.location_map:
             if config.mapping.skip_unmapped_location:
@@ -202,6 +204,7 @@ def _sync_collection(
             folio_ref,
             config.mapping,
         )
+        managed_holdings_ids.add(holdings["id"])
         any_item_changed = False
         for tlc in tlc_group:
             _, item_changed = folio.create_or_update_item(
@@ -213,20 +216,20 @@ def _sync_collection(
                 config.mapping,
             )
             any_item_changed = any_item_changed or item_changed
-        if (
-            holdings_changed or any_item_changed
-        ) and config.mapping.suppress_non_managed:
-            folio.suppress_non_managed_holdings(
+        if any_item_changed and config.mapping.suppress_non_managed:
+            folio.suppress_non_managed_items(
                 folio_client,
-                instance["id"],
                 holdings["id"],
                 folio_ref.managed_stat_code_id,
                 folio_ref.suppressed_stat_code_id,
             )
-            if any_item_changed:
-                folio.suppress_non_managed_items(
-                    folio_client,
-                    holdings["id"],
-                    folio_ref.managed_stat_code_id,
-                    folio_ref.suppressed_stat_code_id,
-                )
+        something_changed = something_changed or holdings_changed or any_item_changed
+
+    if something_changed and config.mapping.suppress_non_managed:
+        folio.suppress_non_managed_holdings(
+            folio_client,
+            instance["id"],
+            managed_holdings_ids,
+            folio_ref.managed_stat_code_id,
+            folio_ref.suppressed_stat_code_id,
+        )
